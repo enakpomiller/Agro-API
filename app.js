@@ -2,7 +2,7 @@ require('dotenv').config();
 const express = require("express");
 const Joi = require('joi');
 const jwt = require('jsonwebtoken');
-const Sequelize = require("sequelize");
+const {Sequelize, QueryTypes} = require("sequelize");
 const bcrypt = require("bcrypt");
 const session = require('express-session');
 const multer = require('multer');
@@ -34,7 +34,7 @@ sequelize.authenticate().then(() => {
   console.log(' connection to database is successful');
 }).catch((error) => console.log(error, ' sorry an eror'));
 
-// desing users the table
+// desing users  table
 const tbl_users = sequelize.define('tbl_users', {
   firstname: Sequelize.STRING,
   lastname: Sequelize.STRING,
@@ -55,9 +55,28 @@ const tbl_admin = sequelize.define('tbl_admin', {
 }, { tableName: "tbl_admin" });
 // executing the command to create table
 tbl_admin.sync();
+ 
+// design farmer table
+const tbl_farmer = sequelize.define('tbl_farmer',{
+  farmername:Sequelize.STRING,
+  poultryname:Sequelize.STRING,
+  phone:Sequelize.STRING,
+  filename:Sequelize.STRING,
+}, {tableName: "tbl_farmer"}) 
+ // execute the command to create table
+ tbl_farmer.sync();
 
+// design farmer product table
+const tbl_farmer_product = sequelize.define('tbl_farmer_product',{
+   farmer_id:Sequelize.STRING,
+   productname:Sequelize.STRING,
+   price:Sequelize.STRING,
+   filename:Sequelize.STRING,
+}, {tableName:"tbl_farmer_product"})
+// execute the command to create table
+tbl_farmer_product.sync();
 
-// Start file upload 
+// Start file upload using multer
   const storage = multer.diskStorage({
     destination: (req, file, callback) => {
       const dir = "uploads/";
@@ -72,17 +91,133 @@ tbl_admin.sync();
     },
   });
   const upload = multer({ storage }); 
-    // routes
-    app.post("/upload/single", upload.single("file"), (req, res) => {
-      res.json({ file: req.file });
-    });
-    app.post("/upload/multiple", upload.array("file", 4), (req, res) => {
-      res.json({ files: req.files });
-    });
 
+    //farmer can upload his/her profile details here
+  app.post("/uploadfarmer_profile", upload.single("file"), (req, res) => {
+      //res.json({file: req.file});
+      const {farmername,poultryname,phone} = req.body;
+       try {
+            const CheckUserExist =  tbl_farmer.findOne({where:{phone:phone,farmername:farmername}});
+            if(CheckUserExist){
+            return res.status(200).json({message:" Farmer profile Already Exist"});
+            }else{
+            const Createfarmer = tbl_farmer.build({
+                farmername,
+                poultryname,
+                phone,
+                filename: req.file.filename
+                });
+                Createfarmer.save();
+                return res.status(200).json({message:' Farmers product created you can proceed to your dashboard'});
+            }
+
+       }catch(err){
+        res.send({message:err});
+       }
+        res.json({ file: req.file.filename });
+    }); 
+
+     // uploading farmer product 
+    app.post("/uploadfarmer_prod", upload.single("file"),(req,res) =>{
+      const {farmer_id,productname} = req.body;
+      try {
+           const CreatefarmerProduct = tbl_farmer_product.build({
+               farmer_id,
+               productname,
+               filename: req.file.filename
+               });
+               CreatefarmerProduct.save();
+               return res.status(200).json({message:' Farmers Product uploaded successfully'});
+
+      }catch(err){
+       res.send({message:err});
+      }
+       //res.json({ file: req.file.filename })
+    
+     });
+
+      // farmer can upload many products
+      // app.post("/uploadfarmer_prod/multiple", upload.array("file", 4), (req, res) => {
+      //       const farmer_id = req.body.farmer_id;
+      //       const productname = req.body.productname;
+      //       console.log(productname);
+      //       const CreateFarmerProd = tbl_farmer_product.build({
+      //         farmer_id,
+      //         productname,
+      //         filename:req.files.filename
+      //       });
+      //       CreateFarmerProd .save();
+      //       res.send(' product created');
+      //       //res.json({ files: req.files });
+            
+      // });
 // End of file upload 
 
+   // click and view farmers product
+   app.get('/viewfarmersproduct/:id', async (req,res) => {
+        try {
+          const farmer_id = (req.params.id);
+          const [results, metadata] = await sequelize.query(`SELECT * FROM tbl_farmer_product JOIN tbl_farmer ON tbl_farmer_product.farmer_id = tbl_farmer.id WHERE tbl_farmer_product.farmer_id =${farmer_id}` );
+            if(results){
+               res.status(200).json({Details:results})
+            }else{
+              return res.sendStatus(403).json({message:" error"});
+            }
+          
+        } catch(err){
+          res.send({message:err});
+        }
 
+
+   });
+
+
+  app.get('/buyproduct/:id',async(req,res) =>{
+      const user_id = req.params.id;
+      const farmerinfo =  await tbl_farmer.findOne({where:{id:user_id}});
+      if(farmerinfo){
+        const img = await tbl_farmer_product.findOne({where:{farmer_id:user_id}});
+        res.send([{message:{farmerName:farmerinfo.farmername}},{Phonenumber:farmerinfo.phone},{Poultryname:farmerinfo.poultryname},{productimage:img.filename},{price:img.productprice},{productprice:img.price}]  )
+
+        }else{
+      return res.json({message:" Record Not Found "})
+        }
+
+  
+  })
+
+
+
+//product search function by customer 
+app.get('/search_product/:key', async (req, res) => {
+  try {
+    const searchkeys = (req.params.key);
+    if (searchkeys) {
+      const search = await tbl_users.findAll({
+        "$or": [
+          { name: { $regex: req.params.searchkeys } }
+        ]
+
+      })
+      res.send(search)
+    } else {
+      return res.send({ message: " Product Not Found " })
+    }
+  } catch (error) {
+    return res.status(201).json({ message: error });
+  }
+
+})
+// display farmer profile
+app.get('/displayfarmer_profile',async(req,res) => {
+   const getall = await tbl_farmer.findAll();
+    try{
+      return res.status(200).json({message:getall});
+    }catch(err){
+     return res.status(201).json({message:err});
+    }
+
+});
 
 //  Admin login  account
 app.post("/adminlogin", async (req, res) => {
@@ -149,7 +284,7 @@ app.post("/createuser", async (req, res) => {
 
 });
 
-// login module 
+// user login module 
 app.post("/login", async (req, res) => {
   try {
     const { error, value } = validatelogin(req.body);
@@ -179,26 +314,7 @@ app.post("/login", async (req, res) => {
   }
 
 });
-//product search function by customer 
-app.get('/search_product/:key', async (req, res) => {
-  try {
-    const searchkeys = (req.params.key);
-    if (searchkeys) {
-      const search = await tbl_users.findAll({
-        "$or": [
-          { name: { $regex: req.params.searchkeys } }
-        ]
 
-      })
-      res.send(search)
-    } else {
-      return res.send({ message: " Product Not Found " })
-    }
-  } catch (error) {
-    return res.status(201).json({ message: error });
-  }
-
-})
 
 
 
@@ -218,18 +334,21 @@ app.get('/search_product/:key', async (req, res) => {
 //  display customer profile
 app.get('/post', authenticatetoken, (req, res) => {
   //  res.json(posts.filter(post => post.username === req.user.name));
-  const result = { customerdetails: req.user }
+  const result = { customerdetails: req.user}
+ 
   res.send(result)
 
 })
-
+    
 
 app.post('/test/login', async (req, res) => {
+  console.log(" test");
   const { email, password } = req.body;
   const UserExist = await tbl_users.findOne({ where: { email: email } })
+  const userID = UserExist.id;
   const profile = UserExist.firstname + ' ' + UserExist.lastname;
   const profileid = Math.random();
-  const user = { customername: profile, customerID: profileid }
+  const user = { customername: profile, customerID: profileid, ID:userID}
   if (UserExist.email && UserExist.role == 'customer' && (await bcrypt.compare(password, UserExist.password))) {
     const accesstoken = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET);
     res.json({ accesstoken: accesstoken });
