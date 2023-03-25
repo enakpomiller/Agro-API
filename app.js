@@ -150,24 +150,28 @@ tbl_farmer_product.sync();
     }); 
 
      // uploading farmer product 
-  app.post("/uploadfarmer_prod", upload.single("file"), (req, res) => {
-      //res.json({file: req.file});
-    const {farmer_id, productname, price } = req.body;
-    // const randomNumber = Math.floor(Math.random() * 900000) + 100000;
-       try {
+     app.post("/uploadfarmer_prod", upload.single("file"), (req, res) => {
+      const { farmer_id, productname, price } = req.body;
+       console.log(farmer_id, productname, price);
+      try {
+        if (farmer_id && productname && price && req.file.filename) {
           const Createfarmer = tbl_farmer_product.build({
-              farmer_id,
-              productname,
-              price,
-              filename: req.file.filename
-              });
-              Createfarmer.save();
-              return res.status(200).json({message:' Farmers product uploaded successfully'});
-       }catch(err){
-        res.send({message:err});
-       }
-        res.json({ file: req.file.filename });
-    }); 
+            farmer_id,
+            productname,
+            price,
+            filename: req.file.filename
+          });
+          Createfarmer.save();
+          return res.status(200).json({ message: 'Farmers product uploaded successfully' }); 
+        } else {
+          return res.status(500).json({ message: 'Please provide all field' })
+        }
+      } catch(err) {
+        res.status(500).json({ message: err.message });
+      }
+
+    });
+
 
    // click and view farmers product
    app.get('/viewfarmersproduct/:id', async (req,res) => {
@@ -338,10 +342,9 @@ app.post("/login", async (req, res) => {
       return res.send({ message: error.details });
     }
     const { email, password } = req.body;
-    const UserExist = await tbl_users.findOne({ where: { email: email } })
-    console.log(UserExist);
+    const UserExist = await tbl_users.findOne({ where: { email: email } });
+
     if (UserExist && (await bcrypt.compare(password, UserExist.password) && (UserExist.role === 'customer'))) {
-      console.log(test);
       //takes you to customers dashboard afer login
       return res.status(200).json({
         message: " SUCCESS, you are loggedin as a  " + UserExist.role,
