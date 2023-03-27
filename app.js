@@ -154,7 +154,6 @@ tbl_farmer_product.sync();
       const { farmer_id, productname, price } = req.body;
        console.log(farmer_id, productname, price);
       try {
-        if (farmer_id && productname && price && req.file.filename) {
           const Createfarmer = tbl_farmer_product.build({
             farmer_id,
             productname,
@@ -163,9 +162,6 @@ tbl_farmer_product.sync();
           });
           Createfarmer.save();
           return res.status(200).json({ message: 'Farmers product uploaded successfully' }); 
-        } else {
-          return res.status(500).json({ message: 'Please provide all field' })
-        }
       } catch(err) {
         res.status(500).json({ message: err.message });
       }
@@ -174,29 +170,79 @@ tbl_farmer_product.sync();
 
 
    // click and view farmers product
-   app.get('/viewfarmersproduct/:id', async (req,res) => {
-      try {
-        const farmer_id = (req.params.id);
-        const results = await sequelize.query('SELECT * FROM tbl_farmer_product JOIN tbl_farmer ON tbl_farmer_product.farmer_id = tbl_farmer.id WHERE tbl_farmer_product.id = :farmerId', {
-            replacements: { farmerId: farmer_id },
-            type: QueryTypes.SELECT
+  app.get('/viewfarmersproduct/:farmerId', async (req, res) => {
+    try {
+      const results = await sequelize.query('SELECT * FROM tbl_farmer_product WHERE farmer_id = :farmerId', {
+        replacements: { farmerId: req.params.farmerId },
+        type: QueryTypes.SELECT,
+        nest: true // optional, returns a nested object instead of a flat array
+      });
+
+      if (results.length > 0) {
+        res.status(200).json({
+          results
         });
-
-        if(results){
-          res.status(200).json({
-            results
-          })
-        }else{
-          return res.sendStatus(403).json({
-            message: " error"
-          });
-        }
-        
-      } catch(err){
-        res.send({message:err});
+      } else {
+        res.status(404).json({
+          message: 'No products found for the given farmer ID'
+        });
       }
-   });
+          
+    } catch (err) {
+      res.send({ message: err });
+    }
+  });
 
+  // view single farmer product
+  app.get('/viewSingleProduct/:Id', async (req, res) => {
+    try {
+      const results = await sequelize.query('SELECT * FROM tbl_farmer_product WHERE id = :Id', {
+        replacements: { Id: req.params.Id },
+        type: QueryTypes.SELECT,
+        nest: true // optional, returns a nested object instead of a flat array
+      });
+
+      if (results.length > 0) {
+        res.status(200).json({
+          results
+        });
+      } else {
+        res.status(404).json({
+          message: 'No product found for the given product ID'
+        });
+      }
+          
+    } catch (err) {
+      res.send({ message: err });
+    }
+  });
+
+  app.get('/getSingleFarmer/:farmerId', async (req, res) => {
+    try {
+      const results = await sequelize.query('SELECT * FROM tbl_users WHERE role_id = :farmerId', {
+        replacements: { farmerId: req.params.farmerId },
+        type: QueryTypes.SELECT,
+        nest: true // optional, returns a nested object instead of a flat array
+      });
+
+      const finalResult = Object.assign({}, ...results);
+      delete finalResult.password;
+      console.log(finalResult);
+
+      if (results.length > 0) {
+        res.status(200).json({
+          result: finalResult
+        });
+      } else {
+        res.status(404).json({
+          message: 'No farmer found for the given product ID'
+        });
+      }
+          
+    } catch (err) {
+      res.send({ message: err });
+    }
+  });
 
   app.get('/buyproduct/:id',async(req,res) =>{
     const user_id = req.params.id;
