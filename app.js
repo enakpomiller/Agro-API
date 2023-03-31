@@ -75,6 +75,7 @@ const tbl_users = sequelize.define('tbl_users', {
   role: Sequelize.STRING,
   role_id: Sequelize.STRING,
   password: Sequelize.STRING,
+  filename: Sequelize.STRING
 }, { tableName: "tbl_users" }
 );
 // executing the command to create table
@@ -103,7 +104,13 @@ const tbl_farmer_product = sequelize.define('tbl_farmer_product',{
    farmer_id:Sequelize.NUMBER,
    productname:Sequelize.STRING,
    price:Sequelize.STRING,
-   filename:Sequelize.STRING,
+   filename: Sequelize.STRING,
+   type:Sequelize.STRING,
+   quantity:Sequelize.STRING,
+   description:Sequelize.STRING,
+   
+
+   
 }, {tableName:"tbl_farmer_product"})
 // execute the command to create table
 tbl_farmer_product.sync();
@@ -151,13 +158,16 @@ tbl_farmer_product.sync();
 
      // uploading farmer product 
      app.post("/uploadfarmer_prod", upload.single("file"), (req, res) => {
-      const { farmer_id, productname, price } = req.body;
-       console.log(farmer_id, productname, price);
+      const { farmer_id, productname, price, type, quantity, description } = req.body;
+       console.log(farmer_id, productname, price, type, quantity, description);
       try {
           const Createfarmer = tbl_farmer_product.build({
             farmer_id,
             productname,
             price,
+            type,
+            quantity,
+            description,
             filename: req.file.filename
           });
           Createfarmer.save();
@@ -170,7 +180,7 @@ tbl_farmer_product.sync();
 
 
    // click and view farmers product
-  app.get('/viewfarmersproduct/:farmerId', async (req, res) => {
+  app.get('/viewfarmerproducts/:farmerId', async (req, res) => {
     try {
       const results = await sequelize.query('SELECT * FROM tbl_farmer_product WHERE farmer_id = :farmerId', {
         replacements: { farmerId: req.params.farmerId },
@@ -217,6 +227,8 @@ tbl_farmer_product.sync();
     }
   });
 
+
+
   app.get('/getSingleFarmer/:farmerId', async (req, res) => {
     try {
       const results = await sequelize.query('SELECT * FROM tbl_users WHERE role_id = :farmerId', {
@@ -238,7 +250,55 @@ tbl_farmer_product.sync();
           message: 'No farmer found for the given product ID'
         });
       }
+        
+    } catch (err) {
+      res.send({ message: err });
+    }
+  });
+
+
+    app.delete('/deleteUser/:productId', async (req, res) => {
+        try {
+          const result = await sequelize.query('DELETE FROM tbl_farmer_product WHERE id = :productId', {
+              replacements: { productId: req.params.productId },
+              type: QueryTypes.DELETE,
+              nest: true
+          });
+
+          if (!result) {
+              res.status(200).json({
+                  message: 'User deleted successfully'
+              });
+          } else {
+              res.status(404).json({
+                  message: 'No user found for the given role ID'
+              });
+          }
           
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({
+                message: 'Internal server error'
+            });
+        }
+    });
+
+
+  app.get('/getAllFarmers', async (req, res) => {
+    try {
+      const results = await sequelize.query(`SELECT * FROM tbl_users WHERE role = 'farmer'`);
+
+      const finalResult = Object.assign({}, ...results);
+      if (results.length > 0) {
+        res.status(200).json({
+          result: finalResult
+        });
+      } else {
+        res.status(404).json({
+          message: 'No product found '
+        });
+      }
+        
     } catch (err) {
       res.send({ message: err });
     }
@@ -330,7 +390,7 @@ app.post("/adminlogin", async (req, res) => {
 });
 
 // create user account
-app.post("/createuser", async (req, res) => {
+app.post("/createuser", upload.single("file"), async (req, res) => {
   try {
     const { error, value } = validatecreateuser(req.body);
     if (error) {
@@ -354,7 +414,8 @@ app.post("/createuser", async (req, res) => {
         phone,
         role,
         role_id: randomNumber,
-        password
+        password,
+        filename: req.file.filename
       });
 
       await saveUser.save();
@@ -367,6 +428,7 @@ app.post("/createuser", async (req, res) => {
         phone: saveUser.phone,
         role: saveUser.role,
         role_id: saveUser.role_id,
+        filename: req.file.filename
       };
 
       return res.status(200).json({
