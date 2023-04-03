@@ -107,10 +107,7 @@ const tbl_farmer_product = sequelize.define('tbl_farmer_product',{
    filename: Sequelize.STRING,
    type:Sequelize.STRING,
    quantity:Sequelize.STRING,
-   description:Sequelize.STRING,
-   
-
-   
+   description:Sequelize.STRING,   
 }, {tableName:"tbl_farmer_product"})
 // execute the command to create table
 tbl_farmer_product.sync();
